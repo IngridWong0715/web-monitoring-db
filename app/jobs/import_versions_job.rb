@@ -121,12 +121,22 @@ class ImportVersionsJob < ApplicationJob
     validate_kind!([Array, NilClass], record, 'page_maintainers')
     validate_kind!([Array, NilClass], record, 'page_tags')
 
-    url = record['page_url']
-    page = Page.find_by_url(url) || if create
-                                      Page.create!(url: url)
-                                    else
-                                      return nil
-                                    end
+    # Check if record['page_uuid'] exists
+    id = record['page_uuid']
+    if id # find page using page_uuid
+      page = Page.find(id)
+      unless page
+        warn "Skipped unknown page_uuid: #{id}"
+        return nil
+      # if can't find page by page_uuid, try using URL => NECESSARY? OR THROW AN ERROR AND RETURN NIL INSTEAD?
+    else  # proceed finding page with URL
+      url = record['page_url']
+      page = Page.find_by_url(url) || if create
+                                        Page.create!(url: url)
+                                      else
+                                        return nil
+                                      end
+    end
 
     (record['page_maintainers'] || []).each {|name| page.add_maintainer(name)}
     page.add_maintainer(record['site_agency']) if record.key?('site_agency')
