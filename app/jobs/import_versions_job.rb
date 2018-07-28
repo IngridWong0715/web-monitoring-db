@@ -53,10 +53,19 @@ class ImportVersionsJob < ApplicationJob
       return
     end
 
-    existing = page.versions.find_by(
-      capture_time: record['capture_time'],
-      source_type: record['source_type']
-    )
+    # First try to find the version by version_uuid
+    version_id = record['version_uuid']
+    if version_id
+      existing = page.versions.find(version_id)
+    end
+
+    # if can't find with version_id, use capture_time and source_type
+    unless existing
+      existing = page.versions.find_by(
+        capture_time: record['capture_time'],
+        source_type: record['source_type']
+      )
+    end
 
     return if existing && @import.skip_existing_records?
     version = version_for_record(record, existing, @import.update_behavior)
@@ -121,15 +130,14 @@ class ImportVersionsJob < ApplicationJob
     validate_kind!([Array, NilClass], record, 'page_maintainers')
     validate_kind!([Array, NilClass], record, 'page_tags')
 
-    # Check if record['page_uuid'] exists
+    # First try to find page using page_uuid
     id = record['page_uuid']
-    if id # find page using page_uuid
+    if id
       page = Page.find(id)
-      unless page
-        warn "Skipped unknown page_uuid: #{id}"
-        return nil
-      # if can't find page by page_uuid, try using URL => NECESSARY? OR THROW AN ERROR AND RETURN NIL INSTEAD?
-    else  # proceed finding page with URL
+    end
+
+    # Proceed finding page with URL
+    unless page
       url = record['page_url']
       page = Page.find_by_url(url) || if create
                                         Page.create!(url: url)
